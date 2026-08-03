@@ -1,72 +1,51 @@
 import time
 import subprocess
 from picamera2 import Picamera2
+from picamera2.encoders import H264Encoder
+from picamera2.outputs import FileOutput
 
 print("Initializing Camera Module 3...")
 picam = Picamera2()
 
-# Configure camera settings (720p balanced mode)
 config = picam.create_video_configuration(
     main={"size": (1280, 720), "format": "XRGB8888"},
     video={"size": (1280, 720), "format": "H264"}
 )
 picam.configure(config)
 
-# ==========================================================
-# LOCK FOCUS TO INFINITY FOR FLIGHT
-# ==========================================================
 picam.set_controls({"AfMode": 0})
 picam.set_controls({"LensPosition": 0.0})
 print("Camera focus LOCKED to Infinity.")
-# ==========================================================
 
-output_filename = "rocket_flight.h264"
-mp4_filename = "rocket_flight.mp4"
+output_path = "/home/pi/rocket_flight.mp4"
 
-# IMPORTANT: set this to match the actual FPS you're achieving at this
-# resolution on the Zero W (you measured ~20-24 FPS at 720p single-core).
-# If it doesn't match reality, playback speed will be off.
-RECORDED_FPS = 22
+# Spawn ffmpeg manually so we control the mp4 fragmentation flags directly.
+# frag_keyframe+empty_moov: write self-contained fragments as data arrives,
+# instead of relying on a single index written at the very end of the file.
+ffmpeg_cmd = [
+    "ffmpeg",
+    "-y",
+    "-f", "h264",
+    "-i", "pipe:0",
+    "-c", "copy",
+    "-movflags", "frag_keyframe+empty_moov+default_base_moof",
+    output_path
+]
 
-print(f"Starting hardware recording... Saving to {output_filename}")
+print(f"Starting ffmpeg, writing fragmented mp4 to {output_path}...")
+ffmpeg_process = subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE)
 
-picam.start_recording(output_filename)
-picam.start()
+encoder = H264Encoder()
+output = FileOutput(ffmpeg_process.stdin)
+
+print("Starting recording — will run until power is cut or process is killed...")
+picam.start_recording(encoder, output)
 
 try:
-    flight_duration = 60
-    print(f"Recording flight for {flight_duration} seconds...")
-    time.sleep(flight_duration)
-
+    while True:
+        time.sleep(1)
 except KeyboardInterrupt:
-    print("\nRecording manually stopped.")
-
-finally:
-    print("Saving video file and shutting down camera assets...")
+    print("Manually stopped.")
     picam.stop_recording()
-    picam.stop()
-    picam.close()
-    print("Camera closed.")
-
-    # ==========================================================
-    # AUTO-CONVERT TO MP4
-    # ==========================================================
-    print(f"Converting {output_filename} to {mp4_filename}...")
-    try:
-        subprocess.run(
-            [
-                "ffmpeg", "-y",
-                "-r", str(RECORDED_FPS),
-                "-i", output_filename,
-                "-c", "copy",
-                mp4_filename
-            ],
-            check=True
-        )
-        print(f"Conversion complete: {mp4_filename}")
-    except FileNotFoundError:
-        print("ffmpeg not found. Install it with: sudo apt install ffmpeg")
-    except subprocess.CalledProcessError as e:
-        print(f"ffmpeg conversion failed: {e}")
-
-    print("Done! Safe landing.")
+    ffmpeg_process.stdin.close()
+    ffmpeg_process.wait()
