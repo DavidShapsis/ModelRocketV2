@@ -8,7 +8,7 @@ from bno085 import BNO085
 # ==========================================
 # ROCKET FLIGHT CONFIGURATION
 # ==========================================
-SERVO_PIN = 16              
+SERVO_PIN = 10
 SERVO_START_ANGLE = 0       
 SERVO_DEPLOY_ANGLE = 90     
 
@@ -19,15 +19,18 @@ METERS_TO_FEET = 3.28084
 # HARDWARE INITIALIZATION
 # ==========================================
 # Verified stable SoftI2C configuration without external resistors
-i2c = SoftI2C(scl=Pin(9, Pin.IN, Pin.PULL_UP), sda=Pin(8, Pin.IN, Pin.PULL_UP), freq=50000)
+# BMP280 and BNO085 each get their own bus so a stall/fault on one sensor
+# can't hang the other's transactions.
+i2c_bmp = SoftI2C(scl=Pin(9, Pin.IN, Pin.PULL_UP), sda=Pin(8, Pin.IN, Pin.PULL_UP), freq=50000)
+i2c_imu = SoftI2C(scl=Pin(7, Pin.IN, Pin.PULL_UP), sda=Pin(6, Pin.IN, Pin.PULL_UP), freq=50000)
 
 # Initialize BMP280
-bmp = BMP280(i2c)
+bmp = BMP280(i2c_bmp)
 
 # Initialize BNO085 IMU
 print("Initializing BNO085 IMU...")
 time.sleep_ms(150)
-imu = BNO085(i2c)
+imu = BNO085(i2c_imu)
 
 # Enable required features on the IMU
 imu.enable_feature(imu.REPORT_LINEAR_ACCELERATION) # For Inertial Speed
