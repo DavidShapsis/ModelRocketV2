@@ -9,8 +9,8 @@ from bno085 import BNO085
 # ROCKET FLIGHT CONFIGURATION
 # ==========================================
 SERVO_PIN = 10
-SERVO_START_ANGLE = 0       
-SERVO_DEPLOY_ANGLE = 90     
+SERVO_START_ANGLE = 90       
+SERVO_DEPLOY_ANGLE = 30     
 
 # Conversions
 METERS_TO_FEET = 3.28084
